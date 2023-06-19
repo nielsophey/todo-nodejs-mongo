@@ -1,0 +1,6 @@
+catalog: Catalog
+definition: Todo
+tenant: YOUR-TENANT-ID
+subscription: YOUR-DEV-CENTER-SUBSCRIPTION-ID
+devcenter: YOUR-DEV-CENTER-NAME
+project: YOUR-PROJECT-NAME

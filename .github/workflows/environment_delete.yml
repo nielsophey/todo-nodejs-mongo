@@ -1,0 +1,46 @@
+name: Delete Deployment Environment
+
+on:
+  delete:
+  pull_request:
+    types: [closed]
+
+concurrency:
+  group: ${{ github.event.number || github.event.ref }}
+  cancel-in-progress: true
+
+jobs:
+  setup:
+    if: github.event_name == 'pull_request' || github.event.ref_type == 'branch'
+    name: Setup Deployment Environment
+    runs-on: ubuntu-latest
+
+    outputs:
+      type: ${{ steps.setup.outputs.type }}
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Deployment Environment
+        id: setup
+        uses: colbylwilliams/deployment-environments@v1
+
+  delete:
+    if: github.event_name == 'pull_request' || github.event.ref_type == 'branch'
+    name: Delete Deployment Environment (${{ needs.setup.outputs.type }})
+    runs-on: ubuntu-latest
+
+    needs: setup
+    environment: ${{ needs.setup.outputs.type }}
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Azure CLI login
+        run: az login --service-principal --tenant ${{ vars.AZURE_TENANT_ID }} -u ${{ vars.AZURE_CLIENT_ID }} -p ${{ secrets.AZURE_CLIENT_SECRET }}
+
+      - name: Delete Deployment Environment
+        uses: colbylwilliams/deployment-environments@v1
+        with:
+          action: delete
+          summary: true

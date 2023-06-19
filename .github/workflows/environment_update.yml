@@ -1,0 +1,74 @@
+name: Update Deployment Environment
+
+on:
+  push:
+  pull_request:
+    types: [synchronize]
+
+concurrency:
+  group: ${{ github.event.number || github.ref_name }}
+
+jobs:
+  setup:
+    if: github.event_name == 'pull_request' || (contains(github.event.ref, 'refs/heads') && !github.event.created)
+    name: Setup Deployment Environment
+    runs-on: ubuntu-latest
+
+    outputs:
+      type: ${{ steps.setup.outputs.type }}
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Deployment Environment
+        id: setup
+        uses: colbylwilliams/deployment-environments@v1
+
+  update:
+    if: github.event_name == 'pull_request' || (contains(github.event.ref, 'refs/heads') && !github.event.created)
+    name: Update Deployment Environment (${{ needs.setup.outputs.type }})
+    runs-on: ubuntu-latest
+
+    needs: setup
+    environment: ${{ needs.setup.outputs.type }}
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Azure CLI login
+        run: az login --service-principal --tenant ${{ vars.AZURE_TENANT_ID }} -u ${{ vars.AZURE_CLIENT_ID }} -p ${{ secrets.AZURE_CLIENT_SECRET }}
+
+      - name: Update Deployment Environment
+        id: ade
+        uses: colbylwilliams/deployment-environments@v1
+        with:
+          action: ensure
+          summary: true
+
+      - name: AZD Install
+        run: curl -fsSL https://aka.ms/install-azd.sh | bash
+
+      - name: AZD Login
+        run: azd auth login --tenant-id ${{ vars.AZURE_TENANT_ID }} --client-id ${{ vars.AZURE_CLIENT_ID }} --client-secret ${{ secrets.AZURE_CLIENT_SECRET }}
+
+      - name: AZD Init
+        run: |
+          azd config set alpha.resourceGroupDeployments on
+          azd init --location eastus --subscription $ADE_SUBSCRIPTION --environment $ADE_NAME
+          azd env set AZURE_RESOURCE_GROUP $ADE_RESOURCE_GROUP
+
+      - name: AZD Provision
+        if: ${{ steps.ade.outputs.created == 'true' }}
+        run: |
+          azd provision
+
+      - name: AZD Refresh
+        if: ${{ steps.ade.outputs.created == 'false' }}
+        run: |
+          azd env refresh
+
+      - name: AZD Deploy
+        run: azd deploy --all
+
+      # - name: AZD Summary
+      #   run: python3 ./.github/scripts/service_summary.py

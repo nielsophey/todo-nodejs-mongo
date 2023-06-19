@@ -1,0 +1,6 @@
+name: Todo
+version: 1.0.0
+summary: Todo nodejs mongo
+description: Deploys the dotnet podcast environment
+runner: ARM
+templatePath: azuredeploy.json
